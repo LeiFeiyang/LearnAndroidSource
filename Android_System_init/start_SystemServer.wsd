@@ -1,0 +1,28 @@
+@startuml
+
+ZygoteInit.java -> ZygoteInit.java +: handleSystemServerProcess()
+    ZygoteInit.java -> ZygoteInit.java+ #Green: zygoteInit()
+        == 启动Binder线程池 ==
+        ZygoteInit.java -> AndroidRuntime.cpp+ #LightCoral: nativeZygoteInit()
+            AndroidRuntime.cpp -> AndroidRuntime.cpp: gCurRuntime -> onZygoteInit()
+            AndroidRuntime.cpp -> app_main.cpp +: onZygoteInit
+                app_main.cpp -> ProcessState +: startThreadPool()
+                note right of ProcessState
+                    启动一个Binder线程池，这样SystemServer进程就可以
+                    使用Binder与其他进程进行通信了。
+
+                    **nativeZygoteInit函数主要用来启动Binder线程池**
+                end note 
+                return
+            return
+        return
+        == 反射调用SystemServer.java的main方法从而启动SystemServer ==
+        ZygoteInit.java -> RuntimeInit.java +: applicationInit()
+            RuntimeInit.java -> RuntimeInit.java: findStaticMain()
+            note right of RuntimeInit.java 
+                反射调用SystemServer.java的main方法
+            end note 
+        return
+    return
+return
+@enduml

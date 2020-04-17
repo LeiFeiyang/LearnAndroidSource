@@ -30,24 +30,65 @@ ZygoteInit.java -> ZygoteInit.java: if !enableLazyPreload, preload()
 note right of ZygoteInit.java
 预加载类和资源
 end note
-== 以socket方式创建ZygoteServer ==
-alt 创建ZygoteServer //socket
-    ZygoteInit.java -> ZygoteServer.java+: new ZygoteServer
-        ZygoteServer.java -> Zygote.java +: createManagedSocketFromInitSocket
-        Zygote.java -> Zygote.java+:ANDROID_SOCKET_PREFIX + socketName
-        return fullSocketName = "ANDROID_SOCKET_" + socketName
-        Zygote.java -> LocalServerSocket.java + #LightGreen: new LocalServerSocket(fd)
-                LocalServerSocket.java -> LocalSocketImpl.java +: new LocalSocketImpl(fd)
-                return impl
-                LocalServerSocket.java -> LocalServerSocket.java: impl.listen()
-                note right of LocalServerSocket.java
-                    create socket and listen.
-                end note
-        return 
-        return mZygoteSocket
-    return zygoteServer
-end
+== 启动ZygoteServer ==
+alt #LightSkyBlue
+    == 以socket方式创建ZygoteServer ==
+    alt 创建ZygoteServer //socket
+        ZygoteInit.java -> ZygoteServer.java+: new ZygoteServer
+            ZygoteServer.java -> Zygote.java +: createManagedSocketFromInitSocket
+            Zygote.java -> Zygote.java+:ANDROID_SOCKET_PREFIX + socketName
+            return fullSocketName = "ANDROID_SOCKET_" + socketName
+            Zygote.java -> LocalServerSocket.java + #LightGreen: new LocalServerSocket(fd)
+                    LocalServerSocket.java -> LocalSocketImpl.java +: new LocalSocketImpl(fd)
+                    return impl
+                    LocalServerSocket.java -> LocalServerSocket.java: impl.listen()
+                    note right of LocalServerSocket.java
+                        create socket and listen.
+                    end note
+            return 
+            return mZygoteSocket
+        return zygoteServer
+    end
 
+    == 阻塞监听AMS请求创建新应用程序进程 ==
+    ZygoteInit.java -> ZygoteServer.java: runSelectLoop(abiList)
+    note right of ZygoteServer.java
+    The select loop returns early in the child process 
+    after a fork and loops forever in the zygote.
+
+    阻塞在这里，等待AMS请求创建新的应用程序进程，
+    通过linux IO多路复用机制(poll)监听__**多个**__socket文件描述符，
+    从而监听socket文件是否有数据进入。
+
+    为什么会有多个socket？
+    SystemServer和应用程序进程都是从Zygote进程fork出来的，
+    复制了Zygote进程的地址空间，因此也得到了Zygote进程创建的Socket，
+    但是对于SystemServer来说，这个socket没有用处
+    end note
+    ZygoteServer.java -> ZygoteServer.java: socketFDs.add(mZygoteSocket.getFileDesc)
+    loop 
+        ZygoteServer.java -> ZygoteServer.java +: while(True)
+            ZygoteServer.java -> ZygoteServer.java: socketFD -> pollFD
+            ZygoteServer.java -> Os: Os.poll(pollFDs, timeout)
+            ... waiting ...
+            ZygoteServer.java -> ZygoteServer.java: acceptCommandPeer
+            ZygoteServer.java -> ZygoteConnection.java +: processOneCommand
+                ZygoteConnection.java -> ZygoteConnection.java: handleChildProc()
+                alt 启动新的应用程序进程
+                    ZygoteConnection.java -> WrapperInit.java +: execApplication()
+                        WrapperInit.java -> Zygote.java +: execShell()
+                            Zygote.java -> Os +: Os.execv()
+                            return
+                            note right of Os
+                                在这里进行系统调用
+                            end note
+                        return
+                    return
+                end
+            return
+        return
+    end
+end
 == fork并启动SystemServer进程 ==
 alt if(startSystemServer)
     ZygoteInit.java -> Zygote.java +: forkSystemServer
@@ -56,43 +97,14 @@ alt if(startSystemServer)
         return
     return pid 
     alt if pid==0 //子进程
+        ZygoteInit.java -> ZygoteServer.java: closeServerSocket
+        note right of ZygoteServer.java 
+            SystemServer进程是从Zygote进程fork出来的，
+            所以从Zygote复刻过来的socket在此处无用处，
+            所以关掉它.
+        end note
         ZygoteInit.java -> ZygoteInit.java: handleSystemServerProcess()
     end
 end 
-
-== 阻塞监听AMS请求创建新应用程序进程 ==
-ZygoteInit.java -> ZygoteServer.java: runSelectLoop(abiList)
-note right of ZygoteServer.java
-The select loop returns early in the child process 
-after a fork and loops forever in the zygote.
-
-阻塞在这里，等待AMS请求创建新的应用程序进程，
-通过linux IO多路复用机制(poll)监听__**多个**__socket文件描述符，
-从而监听socket文件是否有数据进入。
-end note
-ZygoteServer.java -> ZygoteServer.java: socketFDs.add(mZygoteSocket.getFileDesc)
-loop 
-    ZygoteServer.java -> ZygoteServer.java +: while(True)
-        ZygoteServer.java -> ZygoteServer.java: socketFD -> pollFD
-        ZygoteServer.java -> Os: Os.poll(pollFDs, timeout)
-        ... waiting ...
-        ZygoteServer.java -> ZygoteServer.java: acceptCommandPeer
-        ZygoteServer.java -> ZygoteConnection.java +: processOneCommand
-            ZygoteConnection.java -> ZygoteConnection.java: handleChildProc()
-            alt 启动新的应用程序进程
-                ZygoteConnection.java -> WrapperInit.java +: execApplication()
-                    WrapperInit.java -> Zygote.java +: execShell()
-                        Zygote.java -> Os +: Os.execv()
-                        return
-                        note right of Os
-                            在这里进行系统调用
-                        end note
-                    return
-                return
-            end
-        return
-    return
-end
-
 
 @enduml
