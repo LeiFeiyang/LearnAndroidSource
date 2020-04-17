@@ -1,0 +1,18 @@
+@startuml
+
+[*] --> PowerOn
+PowerOn --> BootLoader
+BootLoader --> LinuxOs
+LinuxOs --> init
+init --> Zygote
+
+
+LinuxOs: 设置缓存, 加载驱动, 寻找init.rc并启动init进程
+init: 1. 初始化kernel log
+init: 2. 初始化属性服务
+init: 3. 加载init.rc，加载services //Zygote也是一个service
+init: 4. am.QueueEventTrigger("init");  
+init: 5. am.ExecuteOneCommand() //启动services列表中定义的进程
+Zygote: 孵化器，通过fork的形式创建应用程序进程和SystemServer进程
+
+@enduml

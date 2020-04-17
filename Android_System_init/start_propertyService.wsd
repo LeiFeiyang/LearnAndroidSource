@@ -1,0 +1,22 @@
+@startuml
+== 创建一个socket server ==
+init.cpp -> property_service.cpp: StartPropertyService:
+property_service.cpp -> property_service.cpp: create a socket file desctiption as **property_set_fd**
+property_service.cpp -> property_service.cpp: listen socket
+
+== epoll监听socket server fd ==
+property_service.cpp -> PropertyServiceThread: epoll监听property_set_fd
+
+== 当数据进入时，epoll回调，保存属性设置 ==
+ -> property_service.cpp: 当property_set_fd有数据到来时， epoll会回调handle_property_set_fd函数 
+property_service.cpp -> property_service.cpp+: handle_property_set_fd
+    property_service.cpp -> property_service.cpp +: HandlePropertySet()
+        alt StartsWith(name, "ctl.") //控制属性
+            property_service.cpp -> property_service.cpp: SendControlMessage()
+        else 普通属性
+            property_service.cpp -> property_service.cpp: PropertySet() //保存属性设置
+        end 
+    return
+return
+
+@enduml

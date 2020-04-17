@@ -1,0 +1,98 @@
+@startuml
+
+
+init_Process -> app_main.cpp: fock & execve 
+note right of init_Process
+执行init.${ro.zygote}.rc中定义的Service.
+.rc定义执行程序路径为/system/bin/app_process64,
+对应的文件为app_main.cpp。
+这样就运行进入app_main.cpp的main函数。
+也就是Zygote的main函数
+
+**Zygote最初叫app_process**
+end note
+
+app_main.cpp -> app_main.cpp: main
+app_main.cpp -> app_main.cpp: if arg is '--zygote', zygote=true
+
+note over of app_main.cpp
+Zygote进程通过fork创建子进程，
+所以需要通过arg区分在运行哪个进程
+end note
+
+app_main.cpp -> AndroidRuntime.cpp: start("com.android.internal.os.ZygoteInit",...)
+AndroidRuntime.cpp -> AndroidRuntime.cpp: startVm //启动java虚拟机
+AndroidRuntime.cpp -> AndroidRuntime.cpp: "com.android.internal.os.ZygoteInit" -> "com/android/internal/os/ZygoteInit"
+
+== 从Native进入java ==
+AndroidRuntime.cpp -> ZygoteInit.java: JNI调用ZygoteInit的main方法
+ZygoteInit.java -> ZygoteInit.java: if !enableLazyPreload, preload()
+note right of ZygoteInit.java
+预加载类和资源
+end note
+== 以socket方式创建ZygoteServer ==
+alt 创建ZygoteServer //socket
+    ZygoteInit.java -> ZygoteServer.java+: new ZygoteServer
+        ZygoteServer.java -> Zygote.java +: createManagedSocketFromInitSocket
+        Zygote.java -> Zygote.java+:ANDROID_SOCKET_PREFIX + socketName
+        return fullSocketName = "ANDROID_SOCKET_" + socketName
+        Zygote.java -> LocalServerSocket.java + #LightGreen: new LocalServerSocket(fd)
+                LocalServerSocket.java -> LocalSocketImpl.java +: new LocalSocketImpl(fd)
+                return impl
+                LocalServerSocket.java -> LocalServerSocket.java: impl.listen()
+                note right of LocalServerSocket.java
+                    create socket and listen.
+                end note
+        return 
+        return mZygoteSocket
+    return zygoteServer
+end
+
+== fork并启动SystemServer进程 ==
+alt if(startSystemServer)
+    ZygoteInit.java -> Zygote.java +: forkSystemServer
+        Zygote.java -> com_android_internal_os_Zygote.cpp+: nativeForkSystemServer
+            com_android_internal_os_Zygote.cpp->com_android_internal_os_Zygote.cpp:fork()
+        return
+    return pid 
+    alt if pid==0 //子进程
+        ZygoteInit.java -> ZygoteInit.java: handleSystemServerProcess()
+    end
+end 
+
+== 阻塞监听AMS请求创建新应用程序进程 ==
+ZygoteInit.java -> ZygoteServer.java: runSelectLoop(abiList)
+note right of ZygoteServer.java
+The select loop returns early in the child process 
+after a fork and loops forever in the zygote.
+
+阻塞在这里，等待AMS请求创建新的应用程序进程，
+通过linux IO多路复用机制(poll)监听__**多个**__socket文件描述符，
+从而监听socket文件是否有数据进入。
+end note
+ZygoteServer.java -> ZygoteServer.java: socketFDs.add(mZygoteSocket.getFileDesc)
+loop 
+    ZygoteServer.java -> ZygoteServer.java +: while(True)
+        ZygoteServer.java -> ZygoteServer.java: socketFD -> pollFD
+        ZygoteServer.java -> Os: Os.poll(pollFDs, timeout)
+        ... waiting ...
+        ZygoteServer.java -> ZygoteServer.java: acceptCommandPeer
+        ZygoteServer.java -> ZygoteConnection.java +: processOneCommand
+            ZygoteConnection.java -> ZygoteConnection.java: handleChildProc()
+            alt 启动新的应用程序进程
+                ZygoteConnection.java -> WrapperInit.java +: execApplication()
+                    WrapperInit.java -> Zygote.java +: execShell()
+                        Zygote.java -> Os +: Os.execv()
+                        return
+                        note right of Os
+                            在这里进行系统调用
+                        end note
+                    return
+                return
+            end
+        return
+    return
+end
+
+
+@enduml

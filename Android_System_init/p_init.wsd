@@ -1,0 +1,54 @@
+@startuml
+
+main.cpp -> init.cpp: SecondStageMain
+
+== 初始化kernel log, 创建并挂载文件目录 ==
+init.cpp -> init.cpp: InitKernelLogging
+note right of init.cpp
+now kernel log can be printed.
+end note
+init.cpp -> init.cpp: MountExtraFilesystems
+
+== 初始化/启动属性服务 ==
+init.cpp -> init.cpp: PropertyInit
+init.cpp -> init.cpp: StartPropertyService
+
+== 解析.rc 文件 ==
+init.cpp -> init.cpp+: ActionManager.GetInstance & ServiceList.GetInstance
+return am & sm 
+init.cpp -> init.cpp: LoadBootScripts(am, sm) 
+init.cpp -> ServiceParser: parser service's .rc file(such as Zygote_xxx.rc) and addServices to service_list.
+init.cpp -> Parser: parser init.rc
+note over init.cpp
+android并没有直接在代码总启动Zygote等进程，
+而是将这些进程启动信息（执行文件路径，启动参数等）
+配置在.rc（android init language）文件中。从而
+实现解耦.
+
+在init进程中，将.rc文件解析为执行实例，并根据一些
+特定标签启动他们。（例如Zygote的rc配置文件中，class字段
+为main，init在启动class为main的services时就将其启动了。）
+end note
+
+== fork进程 & 启动解析好的Services等 ==
+init.cpp -> ActionManager+: ExecteOneCommand
+    ActionManager -> Action+: RunBuildinFunction
+        Action -> builtins.cpp+: do_class_start
+            builtins.cpp -> Service+: StartIfNotDisable
+                Service -> Service + #Red:Start
+                    Service -> Service: fork()
+                    Service -> Service: ExpandArgsAndExecv()
+                    note right of Service
+                        1. fork a process
+                        2. exec the Service 
+                            .rc 文件中有定义执行文件的路径，参数，等
+                    end note
+                    note right of Service #LightSkyBlue
+                        **Zygote也是通过rc定义，并在这里启动Zygote进程**
+                    end note
+                return
+            return
+        return
+    return
+return
+@enduml

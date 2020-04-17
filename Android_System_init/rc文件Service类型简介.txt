@@ -1,0 +1,16 @@
+service <name> <pathname> [<argument>]*     //<service的名字><执行程序路径><传递参数>
+<option>                                    //option是Service的修饰词，影响什么时候、如何启动service
+<option>
+...
+
+For example:
+init.zygote32.rc
+
+service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-system-server 
+    class main
+    priority -20
+    user root
+    group root readproc
+    ...
+    onrestart restart audioserver       //当zygote服务重启时，也把audio服务重新启动. (restart audioserver)
+    ...
