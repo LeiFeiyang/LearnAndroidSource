@@ -1,5 +1,8 @@
 @startuml
 
+ZygoteInit.java -> ZygoteInit.java: forkSystemServer
+ZygoteInit.java -> ZygoteInit.java: if(pid == 0) //Zygote进程fork出来的子进程，\n即SystemServer进程
+== 进入Zygote进程fork出的SystemServer进程 ==
 ZygoteInit.java -> ZygoteInit.java +: handleSystemServerProcess()
     ZygoteInit.java -> ZygoteInit.java+ #Green: zygoteInit()
         == 启动Binder线程池 ==
@@ -20,9 +23,74 @@ ZygoteInit.java -> ZygoteInit.java +: handleSystemServerProcess()
         ZygoteInit.java -> RuntimeInit.java +: applicationInit()
             RuntimeInit.java -> RuntimeInit.java: findStaticMain()
             note right of RuntimeInit.java 
-                反射调用SystemServer.java的main方法
+                反射找到SystemServer.java的main方法，
+                并包装进MethodAndArgsCaller.
             end note 
-        return
+        return runnable: <MethodAndArgsCaller extends runnable>
+        ZygoteInit.java -> ZygoteInit.java: r.run()
+        note right of ZygoteInit.java 
+            r.run()将执行MethodAndArgsCaller，
+            该对象就是反射找到的SystemServer的main方法，
+            SystemServer.main()就在这里被调用起来
+        end note 
+    return
+    == 进入ZygoteInit.java的main方法 ==
+    ZygoteInit.java -> SystemServer.java+ #Blue: main()
+        SystemServer.java -> SystemServer.java: run()
+        SystemServer.java -> SystemServer.java: prepare __**main looper thread**__.
+        SystemServer.java -> SystemServer.java: System.loadLibrary("android_services")
+        note right of SystemServer.java 
+            加载加载native的动态库libandroid_services.so 
+        end note    
+        SystemServer.java -> SystemServer.java: createSystemContext() //belong to activityThread
+        == 创建SystemServiceManager ==
+        SystemServer.java -> SystemServiceManager.java +: new SystemServiceManager
+        note right of SystemServer.java 
+            SystemServiceManager会对系统服务进行创建，
+            启动和生命周期的管理
+        end note 
+        return mSystemServiceManager
+        == 用SystemServiceManager启动各种系统服务 ==
+        alt #Wheat 启动服务: \n\t引导服务\n\t核心服务\n\t其他服务 
+            SystemServer.java -> SystemServer.java +: __**startBootstrapServices()**__
+                SystemServer.java -> SystemServiceManager.java +:
+                    note right of SystemServiceManager.java 
+                        startService:
+                        Installer
+                        AMS 
+                        PMS 
+                        DisplayManagerService
+                        etc...
+                    end note 
+                return 
+            return
+            SystemServer.java -> SystemServer.java +:__**startCoreServices()**__
+                SystemServer.java -> SystemServiceManager.java +: 
+                    note right of SystemServiceManager.java 
+                        startService:
+                        BatteryService
+                        UsageStatsService
+                        WebViewUpdateService
+                        LooperStatsService
+                        GpuService
+                        etc...
+                    end note 
+                return
+            return
+            SystemServer.java -> SystemServer.java+: __**startOtherServices()**__
+                SystemServer.java -> SystemServiceManager.java +: 
+                    note right of SystemServiceManager.java 
+                        startService:
+                        DropBoxManagerService
+                        BluetoothService
+                        NotificationManagerService
+                        LancherAppsService
+                        CameraService
+                        etc...
+                    end note 
+                return
+            return
+        end
     return
 return
 @enduml
