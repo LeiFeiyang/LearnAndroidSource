@@ -1,0 +1,29 @@
+@startuml start_Launcher
+SystemServer.java -> SystemServiceManager.java: startOtherServices
+== AMS的systemReady回调 ==
+SystemServer.java -> ActivityServiceManager.java: systemReady()
+ActivityServiceManager.java -> ActivityTaskManagerService.java: startHomeOnAllDisplays
+ActivityTaskManagerService.java -> RootActivityContainer.java: startHomeOnAllDisplays
+RootActivityContainer.java -> RootActivityContainer.java: startHomeOnDisplay
+== 组建intent ==
+RootActivityContainer.java -> ActivityTaskManagerService.java+: getHomeIntent
+alt mFactoryTest != FACTORY_TEST_LOW_LEVEL
+ActivityTaskManagerService.java -> ActivityTaskManagerService.java: intent.addCategory(__**CATEGORY_HOME**__)
+end
+return homeIntent 
+== 获取ActivityStarter,启动 ==
+RootActivityContainer.java -> ActivityStartController.java: startHomeActivity
+ActivityStartController.java -> ActivityStartController.java: obtainStarter(homeIntent,..)
+ActivityStartController.java -> ActivityStarter.java: execute()
+
+note right of ActivityStarter.java
+如何启动activity的？ 后续章节
+end note 
+
+== Launcher app starts ==
+Launcher.java -> Launcher.java: onCreate
+Launcher.java -> LauncherModel.java+: loadAllApps
+return List<AppInfo>
+Launcher.java -> Launcher.java: show them in recycleView.
+
+@enduml

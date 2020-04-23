@@ -1,4 +1,4 @@
-@startuml
+@startuml start_SystemServer
 
 ZygoteInit.java -> ZygoteInit.java: forkSystemServer
 ZygoteInit.java -> ZygoteInit.java: if(pid == 0) //Zygote进程fork出来的子进程，\n即SystemServer进程
@@ -58,7 +58,8 @@ ZygoteInit.java -> ZygoteInit.java +: handleSystemServerProcess()
                         startService:
                         Installer
                         AMS 
-                        PMS 
+                        PMS(PackageManagerService) 
+                        PowerManager
                         DisplayManagerService
                         etc...
                     end note 

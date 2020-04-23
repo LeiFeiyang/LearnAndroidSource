@@ -1,4 +1,4 @@
-@startuml
+@startuml start_PropertyService
 == 创建一个socket server ==
 init.cpp -> property_service.cpp: StartPropertyService:
 property_service.cpp -> property_service.cpp: create a socket file desctiption as **property_set_fd**

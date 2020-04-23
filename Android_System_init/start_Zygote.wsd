@@ -1,5 +1,4 @@
-@startuml
-
+@startuml start_Zygote
 
 init_Process -> app_main.cpp: fock & execve 
 note right of init_Process
