@@ -1,0 +1,24 @@
+@startuml AMS sends request to Zygote to create app process 
+
+->AMS: startProcessLocked
+AMS -> ProcessList.java: startProcessLocked
+ProcessList.java -> ProcessList.java: uid, gid, entryPoint
+ProcessList.java -> Process.java: start
+Process.java -> ZygoteProcess.java: start
+ZygoteProcess.java -> ZygoteProcess.java: startViaZygote
+== 准备参数列表 ==
+ZygoteProcess.java -> ZygoteProcess.java : 将启动参数保存在argsForZygote
+ZygoteProcess.java -> ZygoteProcess.java +: zygoteSendArgsAndGetResult
+== 连接Zygote的socket服务 ==
+    alt 连接Zygote的socket服务
+        ZygoteProcess.java -> ZygoteProcess.java +: openZygoteSocketIfNeeded
+            ZygoteProcess.java -> ZygoteState.java +: connect
+            return 
+        return zygoteState
+    end
+== 将参数转化为string并通过socket发送给zygote服务 ==
+    ZygoteProcess.java -> ZygoteProcess.java: 将argsForZygote用string进行formart
+    ZygoteProcess.java -> zygoteState.java: 将formart后的参数写入socket,从而传递给Zygote服务
+return 
+
+@enduml
