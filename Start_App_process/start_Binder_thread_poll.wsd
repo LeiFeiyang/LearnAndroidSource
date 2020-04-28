@@ -1,0 +1,19 @@
+@startuml start binder thread pool 
+
+ZygoteInit.java -> ZygoteInit.java: nativeZygoteInit()
+ZygoteInit.java -> AndroidRuntime.cpp: _nativeZygoteInit()
+AndroidRuntime.cpp -> app_main.cpp: onZygoteInit()
+app_main.cpp -> ProcessState.cpp +: startThreadPool()
+    ProcessState.cpp -> ProcessState.cpp: spawnPooledThread
+    ProcessState.cpp -> PoolThread+: new
+    PoolThread -> IPCThreadState.cpp: joinThreadPool
+    note right of PoolThread
+        将当前线程注册到Binder驱动中，
+        这样我们创建的线程就加入了Binder线程池。
+        新创建的应用程序进程就支持Binder进程间通信
+    end note 
+    return t: <PoolThread extend Thread> 
+    ProcessState.cpp -> ProcessState.cpp: t->run
+return ProcessState
+......
+@enduml

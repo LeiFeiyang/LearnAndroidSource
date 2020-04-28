@@ -1,3 +1,51 @@
 @startuml Zygote handles the requst of AMS sending 
+-> ZygoteInit.java: main()
+ZygoteInit.java -> ZygoteServer.java: runSelectLoop
+== 与ZygoteServer建立socket连接 ==
+ZygoteServer.java -> ZygoteServer.java+: acceptCommandPeer()
+return peer: ZygoteConnection
+note right of ZygoteServer.java
+    等待建立socket 连接
+end note 
+... ...
+== 从socket中读取请求数据 ==
+ZygoteServer.java -> ZygoteConnection.java: processOneCommand
+ZygoteConnection.java -> ZygoteConnection.java: Zygote.readArgumentList(mSocketReader);
+== 为新应用程序fork出子进程 ==
+ZygoteConnection.java -> Zygote.java+: forkAndSpecialize()
+return pid
+note right of Zygote.java 
+    fork子进程
+end note 
+alt pid == 0 //子进程
+    ZygoteConnection.java -> ZygoteConnection.java: handleChildProc()
+    ZygoteConnection.java -> ZygoteInit.java: zygoteInit()
+    ZygoteInit.java -> ZygoteInit.java: nativeZygoteInit()
+    note right of ZygoteInit.java
+        在这里给新的应用程序进程创建binder线程池
+    end note 
+    == 反射找到ActivityThread的static main方法 ==
+    ZygoteInit.java -> RuntimeInit.java: applicationInit()
+    RuntimeInit.java -> RuntimeInit.java: findStaticMain()
+    RuntimeInit.java -> RuntimeInit.java+: 反射找到method, 包装到MethodAndArgsCaller中
+    note right of RuntimeInit.java
+        反射获得了ActivityThread类的main方法
+    end note 
+    return caller: <MethodAndArgsCaller extend Runnable>
+    ZygoteInit.java -> RuntimeInit.java: caller.run()
+    note right of ZygoteInit.java
+        子进程是从ZygoteInit的父进程fork出来的, 
+        而父进程是从ZygoteInit的main开始执行的，
+        所以此处子进程也是从fork出来的子进程的
+        main方法中继续执行，而main方法最终会执行caller
+        的run方法，从而对反射找到的method进行调用。
+    end note 
+== 进入ActivityThread的main方法, 启动main looper ==
+    RuntimeInit.java -> ActivityThread.java: main
+    ActivityThread.java -> Looper: prepareMainLooper
+    ActivityThread.java -> ActivityThread.java: new ActivityThread()
+    ActivityThread.java -> ActivityThread.java: getHandler()
+    ActivityThread.java -> Looper: looper.loop()
+end
 
 @enduml
